@@ -1,5 +1,5 @@
-ARG SQUIDEX_TAG=
-ARG SQUIDEX_FRONTEND_TAG=
+ARG SQUIDEX_TAG=7.8.2
+ARG SQUIDEX_FRONTEND_TAG=18.10
 
 ## Backend build env
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:7.0 as backend-build
