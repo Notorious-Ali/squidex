@@ -1,0 +1,74 @@
+version: '3.5'
+
+services:
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy
+    container_name: nginx-proxy
+    ports:
+      - "8090:80"
+      - "4430:443"
+    volumes:
+      - /etc/squidex/nginx/conf.d:/etc/nginx/conf.d
+      - /etc/squidex/nginx/vhost.d:/etc/nginx/vhost.d
+      - /etc/squidex/nginx/html:/usr/share/nginx/html
+      - /etc/squidex/nginx/certs:/etc/nginx/certs:ro
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    networks:
+      - internal
+
+  acme-companion:
+    image: nginxproxy/acme-companion
+    container_name: nginx-proxy-acme
+    environment:
+      - DEFAULT_EMAIL=${SQUIDEX_ADMINEMAIL}
+    volumes_from:
+      - nginx-proxy
+    volumes:
+      - /etc/squidex/nginx/certs:/etc/nginx/certs:rw
+      - /etc/acme:/etc/acme.sh
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - internal
+
+  squidex-mongo:
+    image: mongo:6
+    container_name: squidex-mongo
+    volumes:
+      - /etc/squidex/mongo/db:/data/db
+    restart: unless-stopped
+    networks:
+      - internal
+
+  squidex:
+    image: "squidex/squidex:7"
+    container_name: squidex
+    environment:
+      - URLS__BASEURL=https://${SQUIDEX_DOMAIN}
+      - EVENTSTORE__TYPE=MongoDB
+      - EVENTSTORE__MONGODB__CONFIGURATION=mongodb://squidex-mongo
+      - STORE__MONGODB__CONFIGURATION=mongodb://squidex-mongo
+      - IDENTITY__ADMINEMAIL=${SQUIDEX_ADMINEMAIL}
+      - IDENTITY__ADMINPASSWORD=${SQUIDEX_ADMINPASSWORD}
+      - IDENTITY__GOOGLECLIENT=${SQUIDEX_GOOGLECLIENT}
+      - IDENTITY__GOOGLESECRET=${SQUIDEX_GOOGLESECRET}
+      - IDENTITY__GITHUBCLIENT=${SQUIDEX_GITHUBCLIENT}
+      - IDENTITY__GITHUBSECRET=${SQUIDEX_GITHUBSECRET}
+      - IDENTITY__MICROSOFTCLIENT=${SQUIDEX_MICROSOFTCLIENT}
+      - IDENTITY__MICROSOFTSECRET=${SQUIDEX_MICROSOFTSECRET}
+      - LETSENCRYPT_HOST=${SQUIDEX_DOMAIN}
+      - LETSENCRYPT_EMAIL=${SQUIDEX_ADMINEMAIL}
+      - VIRTUAL_HOST=${SQUIDEX_DOMAIN}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/healthz"]
+      start_period: 60s
+    depends_on:
+      - squidex-mongo
+    volumes:
+      - /etc/squidex/assets:/app/Assets
+    restart: unless-stopped
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
